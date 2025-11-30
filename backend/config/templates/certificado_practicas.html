@@ -1,0 +1,110 @@
+{% load staticfiles %}
+
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<style>
+    body {
+        font-size: 11pt;
+        text-align: justify;
+    }
+    div.VoBo{
+      font-size: 7pt;
+    }
+
+    h4 {
+        text-align: center;
+    }
+
+    p.footer {
+        text-align: right;
+        font-size: 8pt;
+    }
+
+    p.caption {
+        text-align: center;
+        font-size: 8pt;
+        font-style: italic;
+    }
+
+    span.caption_firma {
+        font-size: 9pt;
+        font-style: italic;
+    }
+    th {
+      text-align: center;
+    }
+
+    .link_decreto {
+        -pdf-word-wrap: CJK;
+    }
+
+    .tftable {font-size:9px;width:100%;border-width: 1px;border-collapse: collapse;}
+    .tftable th {font-size:10px;border-width: 1px;padding: 2px;border-style: solid;text-align:left;}
+    .tftable td {font-size:12px;border-width: 1px;padding: 2px;border-style: solid;}
+
+    @page {
+        size: a4 portrait;
+        background: url("{{configuracion.logo}}") no-repeat;
+
+        @frame content_frame {
+            {#width: 512pt;#}
+            top: 4cm;
+            right: 2cm;
+            bottom: 3cm;
+            left: 2cm;
+            height: 605pt;
+        }
+
+        @frame footer_frame {
+            -pdf-frame-content: footer_content;
+            top: 710pt;
+            right: 2cm;
+            left: 2cm;
+            height: 15pt;
+        }
+
+        @frame caption_frame {
+            -pdf-frame-content: caption_frame;
+            top: 730pt;
+            right: 2cm;
+            left: 2cm;
+            height: 30pt;
+        }
+    }
+
+    {#@page title_template { margin: 5cm; }#}
+    {#@page regular_template { margin: 2cm; }#}
+</style>
+</head>
+
+<body>
+  <h4>
+    LA SECRETARÍA DE SERVICIOS ADMINISTRATIVOS<br>
+    OFICINA DE BASE<br>
+    DEL MUNICIPIO DE ITAGÜÍ
+  </h4>
+  <h4>CERTIFICA:</h4>
+  <p style="text-align: justify; font-size: 14px;">
+    Que, el(la) estudiante: <strong>{{practica.practicante.nombre_completo}}</strong> identificado(a) con {{practica.practicante.tipo_documento.descripcion}} Nº {{practica.practicante.documento}} de Itagui (Ant), del programa: {{practica.programa.nombre}}, adscrito(a) a ({{practica.programa.institucion.nombre}}),
+    {% if practica.estado.codigo == 'TE' %} realizó {% else %} se encuentra realizando {% endif %} su ciclo de Práctica Académica bajo la modalidad de “convenio de práctica” definido en el Decreto municipal 1071 del 13 de agosto de 2012, modificado por el Decreto 406 del 10 de mayo de 2017, “Que reglamentó el funcionamiento del centro de prácticas profesionales y de aprendizaje para estudiantes de las instituciones públicas o privadas de educación profesional, técnica o tecnológica“. Acorde con el convenio suscrito, por un periodo de SEIS (6) MESES, así: Del <strong>{{practica.fecha_inicial}} al {{practica.fecha_final}}</strong> en {{practica.dependencia.nombre}} del Municipio de Itagüí.
+  </p>
+  <p>{{ configuracion.pie_pagina }}</p>
+
+  Se otorga constancia para los fines propios de la certificación, en Itagüí fecha <strong>{{fecha|date:'d/m/Y'}}</strong>.
+  <br><br>
+  Atentamente,
+  <br>
+  <table>
+    <tr>
+    {% for firma in firmas %}
+    <td>
+      <img src="{{firma.firma}}" height="120px" /><br><br>
+      <strong>{{firma.tipo_firma.descripcion}}:</strong> {{firma.first_name}} {{firma.last_name}}
+    </td>
+    {% endfor %}
+    </tr>
+  </table>
+</body>
+</html>

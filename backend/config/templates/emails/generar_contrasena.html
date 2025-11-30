@@ -1,0 +1,164 @@
+{% load staticfiles %}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <title>Alcaldía de Itagüi</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <style>
+        p.a {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 100%;
+
+        }
+
+        p.b {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 140%;
+
+        }
+
+        p.d {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 80%;
+
+        }
+
+        td.c, th.c {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+    </style>
+</head>
+
+<body style="margin: 0; padding: 0;">
+
+<table align="center" border="0.3" cellpadding="0" cellspacing="0" width="100%">
+
+    <tr>
+
+        <td>
+
+            <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+                <tr>
+                    <td width="200px">
+
+                    </td>
+                    <td align="center" style="padding: 20px 0 30px 0;">
+
+                        <img src="http://vpn.itagui.gov.co:81/intranet/wp-content/uploads/logos/escudo_itagui.png"
+                             width="90"
+                             height="110" style="display: block;">
+                    </td>
+                    <td>
+                        <p class="b" align="center">Alcaldía de Itagüí <br> Sistema de gestión de permisos base </p>
+                    </td>
+                    <td width="200px">
+                    </td>
+
+
+                </tr>
+
+
+            </table>
+
+
+        </td>
+
+
+    </tr>
+    <th>
+        <div style="height:3px; background-color:#26B99A"></div>
+    </th>
+</table>
+
+
+<table align="center" border="0.3" cellpadding="0" cellspacing="0" width="100%" style="background-color:#e7e7e7">
+
+
+
+
+</table>
+
+
+<table align="center" border="0.3" cellpadding="0" cellspacing="0" width="100%">
+
+    <tr>
+        <td width="170px">
+
+        </td>
+
+        <td align="center" style="padding: 10px 0 30px 0;" width="300">
+            Señor(a) <strong>{{ datos.nombre_completo }}</strong>, a continuación encontrará&nbsp;los datos de acceso para
+    ingresar a la plataforma.&nbsp;
+
+    <br><br>
+
+    <strong><u>Usuario:</u></strong> {{ datos.username }}<br>
+    <strong><u>Contraseña:</u></strong> {{ datos.contraseña }}<br>
+
+    <br><br>
+
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" class="mcnButtonBlock" style="min-width:100%;">
+        <tbody class="mcnButtonBlockOuter">
+            <tr>
+                <td style="padding-top:0; padding-right:18px; padding-bottom:18px; padding-left:18px;" valign="top" align="center" class="mcnButtonBlockInner">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%" class="mcnButtonContentContainer" style="border-collapse: separate !important;border-radius: 50px;background-color: #283D70;">
+                        <tbody>
+                            <tr>
+                                <td align="center" valign="middle" style="font-family: &quot;Lucida Sans Unicode&quot;, &quot;Lucida Grande&quot;, sans-serif; font-size: 16px; padding: 15px;">
+                                    <a class="mcnButton " title="Ingresar" href="{{datos.site_url}}" target="_blank" style="font-weight: bold;letter-spacing: 2px;line-height: 100%;text-align: center;text-decoration: none;color: #FFFFFF;">
+                                        INGRESAR
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+          <br>
+          <b>Por favor no responda a este mensaje, es un envío automático.</b>
+        </td>
+
+        <td width="170px">
+
+    </tr>
+
+</table>
+<table align="center" border="0.3" cellpadding="0" cellspacing="0" width="100%" style="background-color:#e7e7e7">
+
+    <tr>
+        <td width="170px">
+
+        </td>
+        <td align="center" style="padding: 10px 0 10px 0;" width="300">
+
+            <p class="a" align="center">
+                <b>
+                    Dirección Administratica de las TIC. Todos los derechos reservados.
+                    <a href="https://www.itagui.gov.co/">Alcaldía de Itagüí</a>
+                </b>
+            </p>
+        </td>
+
+        <td width="170px">
+
+    </tr>
+
+
+</table>
+
+
+</body>
+
+</html>

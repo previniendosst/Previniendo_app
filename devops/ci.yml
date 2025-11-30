@@ -1,0 +1,64 @@
+pool:
+  vmImage: 'ubuntu-latest'
+trigger: none
+variables:
+  BACKEND_PATH: "backend"
+  FRONTEND_PATH: "frontend"
+stages:
+  - stage: BuildCodeChecks
+    displayName: "Build Code Checks"
+    dependsOn: []
+    jobs:
+      - job: BuildCodeChecks
+        steps:
+          - task: DockerCompose@0
+            displayName: Run the build Docker Compose command
+            env:
+              GIT_COMMIT_SHA: $(Build.SourceVersion)
+            inputs:
+              action: Run a Docker Compose command
+              dockerComposeFile: docker-compose-produccion.yml
+              qualifyImageNames: true
+              dockerComposeCommand: build
+  - stage: BackendCodeChecks
+    displayName: "Backend Code Checks"
+    dependsOn: []
+    jobs:
+      - job: BackendCodeChecks
+        strategy:
+          matrix:
+            Python39:
+              python.version: '3.9'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(python.version)'
+          - script: python3 -m pip install --upgrade pip setuptools wheel
+            displayName: 'Install tools'
+          - bash: cd ./${BACKEND_PATH} && python3 -m pip install -r requirements/desarrollo.txt -r requirements/produccion.txt
+            displayName: "Install dependencies"
+          - bash: cd ./${BACKEND_PATH} && python3 -m flake8 config/ apps/
+            displayName: "flake8 check"
+          - bash: cd ./${BACKEND_PATH} && python3 -m safety check --full-report -i 39642 -i 43975
+            displayName: "Safety Dependency Check"
+          - bash: cd ./${BACKEND_PATH} && python3 ./manage.py test
+            displayName: "Unit Tests"
+            env:
+              DJANGO_SETTINGS_MODULE: config.settings.produccion
+  - stage: FrontendCodeChecks
+    displayName: "Frontend Code Checks"
+    dependsOn: []
+    jobs:
+      - job: Frontend
+        strategy:
+          matrix:
+            node_12_x:
+              node_version: 12.x
+        steps:
+        - task: NodeTool@0
+          inputs:
+            versionSpec: $(node_version)
+        - bash: cd ./${FRONTEND_PATH} && npm install
+          displayName: "Install dependencies"
+        - bash: cd ./${FRONTEND_PATH} && ./node_modules/.bin/eslint src/
+          displayName: "ESLint check"
