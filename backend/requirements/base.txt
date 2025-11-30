@@ -14,3 +14,4 @@ Pillow==9.1.0
 drf-renderer-xlsx==0.4.1
 requests==2.22.0
 WeasyPrint==60.1
+openpyxl==3.0.10
