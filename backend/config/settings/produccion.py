@@ -9,7 +9,7 @@ DATABASES = {
         'NAME': 'previniendo',
         'USER': 'previniendo',
         'PASSWORD': 'Previniendo2025!',
-        'HOST': 'host.docker.internal',  # host-gateway from compose
+        'HOST': '165.22.149.77',  # host-gateway from compose
         'PORT': '5432',
     }
 }
