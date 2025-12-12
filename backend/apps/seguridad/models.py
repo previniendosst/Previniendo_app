@@ -236,6 +236,35 @@ class Usuario(AbstractUser, TimeStampedModel):
                 # Attach HTML message
                 msg.attach_alternative(mensaje, "text/html")
                 msg.send()
+            except OSError as exc:
+                # Manejar errores de socket específicos (p.ej. errno 99)
+                logger.exception('Error socket enviando mail (intentando IPv4 fallback) al usuario %s: %s', self.email, exc)
+                # Intentar resolver a IPv4 explícitamente y reintentar
+                try:
+                    import socket
+                    hosts = socket.getaddrinfo(settings.EMAIL_HOST, settings.EMAIL_PORT, socket.AF_INET, socket.SOCK_STREAM)
+                    if hosts:
+                        # hosts entries: (family, socktype, proto, canonname, sockaddr)
+                        ipv4 = hosts[0][4][0]
+                        logger.info('Usando IPv4 %s para conectar SMTP', ipv4)
+                        # Construir conexión SMTP forzada a la IP
+                        timeout = getattr(settings, 'EMAIL_TIMEOUT', 10)
+                        connection = get_connection(host=ipv4, port=settings.EMAIL_PORT, username=settings.EMAIL_HOST_USER, password=settings.EMAIL_HOST_PASSWORD, use_tls=getattr(settings, 'EMAIL_USE_TLS', False), fail_silently=False, timeout=timeout)
+                        subject = asunto
+                        text_content = ''
+                        if mensaje:
+                            import re
+                            try:
+                                text_content = re.sub('<[^<]+?>', '', mensaje)
+                            except Exception:
+                                text_content = ''
+                        msg = EmailMultiAlternatives(subject=subject, body=text_content or ' ', from_email=settings.DEFAULT_FROM_EMAIL, to=[self.email], connection=connection)
+                        msg.attach_alternative(mensaje, "text/html")
+                        msg.send()
+                    else:
+                        logger.error('No se encontraron direcciones IPv4 para %s', settings.EMAIL_HOST)
+                except Exception as exc2:
+                    logger.exception('Reintento IPv4 fallido al enviar mail al usuario %s: %s', self.email, exc2)
             except Exception as exc:
                 # Loguear el error pero no interrumpir el flujo de creación de usuario
                 logger.exception('Error enviando mail de acceso al usuario %s: %s', self.email, exc)
