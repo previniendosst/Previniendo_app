@@ -208,8 +208,45 @@ class Usuario(AbstractUser, TimeStampedModel):
         self.enviar_mail(asunto, mensaje)
 
     def enviar_mail(self, asunto, mensaje):
-        send_mail(asunto, mensaje, settings.DEFAULT_FROM_EMAIL, [self.email], html_message=mensaje,
-                  fail_silently=False)
+        # Enviar el correo en segundo plano usando EmailMultiAlternatives
+        # para garantizar un body en texto plano y HTML y usar un timeout
+        from threading import Thread
+        from django.core.mail import get_connection, EmailMultiAlternatives
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        def _send():
+            connection = None
+            try:
+                timeout = getattr(settings, 'EMAIL_TIMEOUT', 10)
+                connection = get_connection(fail_silently=False, timeout=timeout)
+
+                subject = asunto
+                text_content = ''
+                if mensaje:
+                    # Strip tags for plain text fallback (simple heuristic)
+                    try:
+                        import re
+                        text_content = re.sub('<[^<]+?>', '', mensaje)
+                    except Exception:
+                        text_content = ''
+
+                msg = EmailMultiAlternatives(subject=subject, body=text_content or ' ', from_email=settings.DEFAULT_FROM_EMAIL, to=[self.email], connection=connection)
+                # Attach HTML message
+                msg.attach_alternative(mensaje, "text/html")
+                msg.send()
+            except Exception as exc:
+                # Loguear el error pero no interrumpir el flujo de creación de usuario
+                logger.exception('Error enviando mail de acceso al usuario %s: %s', self.email, exc)
+            finally:
+                try:
+                    if connection:
+                        connection.close()
+                except Exception:
+                    pass
+
+        Thread(target=_send, daemon=True).start()
 
 
 class UsuarioIngreso(TimeStampedModel):

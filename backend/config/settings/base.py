@@ -174,3 +174,5 @@ EMAIL_PORT = 587
 EMAIL_HOST_USER = 'previniendosst2024@gmail.com'
 EMAIL_HOST_PASSWORD = 'Previniendo2024.'
 DEFAULT_FROM_EMAIL = 'previniendosst2024@gmail.com'
+# Timeout for SMTP connections (seconds)
+EMAIL_TIMEOUT = 10
