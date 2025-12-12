@@ -14,7 +14,7 @@ services:
     depends_on:
       - previniendo-backend
     ports:
-      - 8000:80
+      - 80:80
   previniendo-backend:
     build:
       dockerfile: Dockerfile
