@@ -41,7 +41,7 @@
           </q-item-section>
         </q-item>
 
-        <Can I="read" a="'MiEspacio'">
+        <Can I="read" an="MiEspacio">
           <q-item clickable :to="{ name: 'mi-espacio' }" exact v-ripple exact-active-class="text-white bg-primary">
             <q-item-section avatar>
               <q-icon name="dashboard" />
@@ -54,7 +54,7 @@
 
         <q-separator />
 
-        <Can I="read" a="'Usuarios'">
+        <Can I="read" an="Usuarios">
           <q-item clickable :to="{ name: 'usuarios' }" exact v-ripple exact-active-class="text-white bg-primary">
             <q-item-section avatar>
               <q-icon name="person" />
@@ -65,7 +65,7 @@
           </q-item>
         </Can>
 
-        <Can I="read" a="'Ingresos'">
+        <Can I="read" an="Ingresos">
           <q-item clickable :to="{ name: 'ingresos' }" exact v-ripple exact-active-class="text-white bg-primary">
             <q-item-section avatar>
               <q-icon name="business" />
@@ -76,7 +76,7 @@
           </q-item>
         </Can>
 
-        <Can I="read" a="'Roles'">
+        <Can I="read" an="Roles">
           <q-item clickable :to="{ name: 'roles' }" exact v-ripple exact-active-class="text-white bg-primary">
             <q-item-section avatar>
               <q-icon name="security" />
@@ -182,6 +182,8 @@ const form_ref = ref(null)
 
 async function logout() {
   try {
+    // Limpiar la ability ANTES de logout para evitar que queden reglas en caché
+    ability.update([])
     auth.logout();
     router.push('/login');
   } catch (error) {
@@ -226,19 +228,26 @@ async function onEdit() {
 }
 
 function setAbilities(rol) {
-  if (!rol) return
-  if (rol === 'AD') {
-    ability.update([{
-      action: 'manage',
-      subject: 'all'
-    }])
-    
+  // Asegurar que no existan reglas por defecto que sobreescriban las
+  // que vienen del backend. Solo conceder "manage:all" para admin (AD).
+  // Para cualquier otro rol, si no hay permisos cargados, limpiar las reglas.
+  if (!rol) {
+    ability.update([])
+    return
   }
-  else {
+
+  if (rol === 'AD') {
     ability.update([
-      { action: 'read', subject: 'Usuarios' },
-      { action: 'read', subject: 'Ingresos' }
+      { action: 'manage', subject: 'all' }
     ])
+    return
+  }
+
+  // No forzar permisos por defecto aquí: LoginPage.vue se encarga de
+  // construir las reglas a partir de `auth.permisos`. Si no hay permisos
+  // en el store, limpamos las reglas para evitar permisos implícitos.
+  if (!auth.permisos || auth.permisos.length === 0) {
+    ability.update([])
   }
 }
 

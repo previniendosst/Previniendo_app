@@ -32,6 +32,85 @@ from .serializers import (
 from config.mixins import ProtectedForeignKeyDeleteMixin
 from apps.seguridad.permissions import EsUsuarioAdministrador
 from rest_framework.permissions import AllowAny
+from django.contrib.auth import authenticate
+
+
+class LoginAPIView(APIView):
+    """
+    Endpoint de login personalizado que retorna usuario con sus permisos.
+    """
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        usuario = authenticate(username=username, password=password)
+
+        if usuario is None:
+            return Response(
+                {'detail': 'Credenciales inválidas.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Obtener permisos: primero del rol_sistema (modelo Rol), sino del rol legacy
+        permisos = []
+        if usuario.rol_sistema:
+            # Obtener permisos del rol_sistema (tabla seguridad_rolpermiso)
+            rol_permisos = RolPermiso.objects.filter(rol=usuario.rol_sistema)
+            for rp in rol_permisos:
+                permisos.append({
+                    'uuid': str(rp.permiso.uuid),
+                    'codigo': f"CAN_{rp.permiso.accion.upper()}_{rp.permiso.sujeto.upper()}",
+                    'accion': {
+                        'codigo': rp.permiso.accion,
+                        'descripcion': rp.permiso.get_accion_display()
+                    },
+                    'sujeto': {
+                        'codigo': rp.permiso.sujeto,
+                        'descripcion': rp.permiso.get_sujeto_display()
+                    },
+                    'descripcion': rp.permiso.descripcion
+                })
+        elif usuario.rol == 'AD':
+            # Admin: otorgar permisos a todos los sujetos
+            permisos = self._get_all_permissions()
+
+        # Generar token JWT
+        jwt_payload_handler = api_settings.JWT_PAYLOAD_HANDLER
+        jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
+
+        payload = jwt_payload_handler(usuario)
+        token = jwt_encode_handler(payload)
+
+        # Retornar token y usuario con permisos
+        serializer = UsuarioListRetrieveSerializer(usuario)
+        usuario_data = serializer.data
+        usuario_data['permisos'] = permisos
+
+        return Response({
+            'token': token,
+            'usuario': usuario_data
+        }, status=status.HTTP_200_OK)
+
+    def _get_all_permissions(self):
+        """Retorna todos los permisos del sistema para admins."""
+        permisos = []
+        for perm in Permiso.objects.all():
+            permisos.append({
+                'uuid': str(perm.uuid),
+                'codigo': f"CAN_{perm.accion.upper()}_{perm.sujeto.upper()}",
+                'accion': {
+                    'codigo': perm.accion,
+                    'descripcion': perm.get_accion_display()
+                },
+                'sujeto': {
+                    'codigo': perm.sujeto,
+                    'descripcion': perm.get_sujeto_display()
+                },
+                'descripcion': perm.descripcion
+            })
+        return permisos
 
 class UsuarioListCreateAPIView(ListCreateAPIView):
     """
@@ -213,12 +292,29 @@ class RolRetrieveUpdateDestroyAPIView(ProtectedForeignKeyDeleteMixin, RetrieveUp
 
 class PermisoListAPIView(APIView):
     """
-    Se encarga de listar los permisos disponibles
+    Se encarga de listar los permisos disponibles.
+    Retorna todas las combinaciones de acciones x sujetos, creándolas si no existen.
     """
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
-        permisos = Permiso.objects.all()
+        # Obtener todas las combinaciones posibles de ACCIONES x SUJETOS
+        acciones = dict(Permiso.ACCIONES)
+        sujetos = dict(Permiso.SUJETOS)
+
+        permisos = []
+        for accion_code, accion_desc in acciones.items():
+            for sujeto_code, sujeto_desc in sujetos.items():
+                # Intentar obtener o crear el permiso
+                permiso, created = Permiso.objects.get_or_create(
+                    accion=accion_code,
+                    sujeto=sujeto_code,
+                    defaults={
+                        'descripcion': f"{accion_desc} {sujeto_desc}"
+                    }
+                )
+                permisos.append(permiso)
+
         serializer = PermisoSerializer(permisos, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

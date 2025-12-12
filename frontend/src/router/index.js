@@ -1,5 +1,6 @@
 import { defineRouter } from '#q-app/wrappers'
 import { useAuthStore } from 'src/stores/auth'
+import { ability } from 'src/services/ability'
 import { createRouter, createMemoryHistory, createWebHistory, createWebHashHistory } from 'vue-router'
 import routes from './routes'
 
@@ -39,6 +40,16 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     // Si la ruta pide autenticación y NO estoy logueado
     if (to.meta.requiresAuth && !auth.isLoggedIn) {
       return { name: 'login' }
+    }
+
+    // Validar permisos si la ruta lo requiere
+    if (to.meta.requiresAuth && to.meta.requiredPermission) {
+      const { action, subject } = to.meta.requiredPermission
+      // Verificar si el usuario tiene el permiso requerido
+      if (!ability.can(action, subject)) {
+        console.warn(`Acceso denegado a ${to.path}: requiere ${action} ${subject}`)
+        return { name: 'index' } // Redirigir al inicio
+      }
     }
 
     // En cualquier otro caso, dejo pasar

@@ -98,21 +98,29 @@
                         
                         <div class="row q-mt-md">
                             <div class="col-12">
-                                <q-field label="Permisos" outlined filled>
-                                    <template v-slot:default>
-                                        <div class="q-pa-md bg-grey-2">
+                                <div class="text-subtitle2 q-mb-md">Permisos por Módulo</div>
+                                <div class="q-pa-md bg-grey-2 rounded-borders">
+                                    <div v-if="permisosDisponibles.length === 0" class="text-grey">
+                                        Cargando permisos...
+                                    </div>
+                                    <div v-else class="q-gutter-lg">
+                                        <!-- Tabla de permisos por módulo -->
+                                        <div v-for="sujeto in sujetos" :key="sujeto" class="permission-module">
+                                            <div class="text-weight-bold text-primary q-mb-sm">{{ sujeto }}</div>
                                             <div class="row q-gutter-md">
-                                                <q-checkbox
-                                                    v-for="permiso in permisosDisponibles"
-                                                    :key="permiso.uuid"
-                                                    :model-value="permisosSeleccionados.includes(permiso.uuid)"
-                                                    @update:model-value="togglePermiso(permiso.uuid)"
-                                                    :label="`${permiso.accion.descripcion} - ${permiso.sujeto.descripcion}`"
-                                                />
+                                                <div v-for="accion in acciones" :key="`${sujeto}-${accion.codigo}`" class="permission-item">
+                                                    <q-tooltip class="bg-dark text-white">{{ accion.tooltip }}</q-tooltip>
+                                                    <q-checkbox
+                                                        :model-value="isPermisoCheked(accion.codigo, sujeto)"
+                                                        @update:model-value="togglePermisoByModulo(accion.codigo, sujeto, $event)"
+                                                        :label="accion.label"
+                                                        :disable="false"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                    </template>
-                                </q-field>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </q-form>
@@ -134,7 +142,33 @@
     </q-page>
 </template>
 
-<style lang="scss"></style>
+<style lang="scss" scoped>
+.permission-module {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+
+    &:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+}
+
+.permission-item {
+    flex: 0 0 auto;
+    min-width: 150px;
+
+    :deep(.q-checkbox__label) {
+        font-size: 13px;
+        font-weight: 500;
+    }
+}
+
+.rounded-borders {
+    border-radius: 8px;
+}
+</style>
 
 <script setup>
 // Importacion de librerias
@@ -148,6 +182,19 @@ import Swal from 'sweetalert2'
 const path = 'seguridad/roles/'
 const auth = useAuthStore()
 
+// Mapa de acciones con tooltips
+const acciones = [
+    { codigo: 'create', label: 'Crear', tooltip: 'Permite crear nuevos registros' },
+    { codigo: 'read', label: 'Leer', tooltip: 'Permite ver lista y detalles' },
+    { codigo: 'update', label: 'Actualizar', tooltip: 'Permite modificar registros existentes' },
+    { codigo: 'delete', label: 'Eliminar', tooltip: 'Permite eliminar registros' },
+    { codigo: 'detail', label: 'Detalle', tooltip: 'Permite ver información completa' },
+    { codigo: 'finish', label: 'Finalizar', tooltip: 'Permite marcar como completado' }
+]
+
+// Sujetos (módulos)
+const sujetos = ['Usuarios', 'Ingresos', 'Roles', 'Mi Espacio']
+
 // Declaracion de variables
 const toolbar = ref(false)
 const uuid = ref(null)
@@ -155,6 +202,7 @@ const codigo = ref(null)
 const descripcion = ref(null)
 const permisosDisponibles = ref([])
 const permisosSeleccionados = ref([])
+const nuevoPermisoInput = ref('')
 const columns = ref([
     { name: 'codigo', align: 'center', label: 'Código', field: 'codigo', sortable: true },
     { name: 'descripcion', align: 'center', label: 'Descripción', field: 'descripcion', sortable: true },
@@ -182,7 +230,9 @@ onMounted(() => {
 async function loadPermisos() {
     try {
         const response = await api.get('seguridad/permisos/')
-        permisosDisponibles.value = response.data
+        // soportar paginación (results) o lista directa
+        const payload = Array.isArray(response.data) ? response.data : (response.data.results || response.data || [])
+        permisosDisponibles.value = payload
     } catch (error) {
         console.error('Error al cargar permisos:', error)
     }
@@ -198,11 +248,70 @@ function setColumns() {
 }
 
 function togglePermiso(permisoUuid) {
-    const index = permisosSeleccionados.value.indexOf(permisoUuid)
-    if (index > -1) {
-        permisosSeleccionados.value.splice(index, 1)
+    // Conservado por compatibilidad; la UI actual usa v-model en los checkboxes
+}
+
+function isPermisoCheked(accion, sujeto) {
+    // Buscar si existe permiso con esta acción y sujeto en los seleccionados
+    const encontrado = permisosDisponibles.value.find(p => {
+        return p.accion?.codigo === accion && p.sujeto?.descripcion === sujeto && permisosSeleccionados.value.includes(p.uuid)
+    })
+    return !!encontrado
+}
+
+function togglePermisoByModulo(accion, sujeto, checked) {
+    // Buscar el permiso que coincida
+    const permiso = permisosDisponibles.value.find(p => 
+        p.accion?.codigo === accion && p.sujeto?.descripcion === sujeto
+    )
+    
+    if (!permiso) return
+
+    if (checked) {
+        // Agregar a seleccionados si no está
+        if (!permisosSeleccionados.value.includes(permiso.uuid)) {
+            permisosSeleccionados.value.push(permiso.uuid)
+        }
     } else {
-        permisosSeleccionados.value.push(permisoUuid)
+        // Remover de seleccionados
+        const idx = permisosSeleccionados.value.indexOf(permiso.uuid)
+        if (idx > -1) {
+            permisosSeleccionados.value.splice(idx, 1)
+        }
+    }
+}
+
+function agregarPermisoManual() {
+    const v = (nuevoPermisoInput.value || '').trim()
+    if (!v) return
+    // evitar duplicados
+    if (!permisosSeleccionados.value.includes(v)) {
+        permisosSeleccionados.value.push(v)
+    }
+    nuevoPermisoInput.value = ''
+}
+
+function quitarPermisoManual(perm) {
+    const idx = permisosSeleccionados.value.indexOf(perm)
+    if (idx > -1) permisosSeleccionados.value.splice(idx, 1)
+}
+
+async function ensurePermissionUuid(perm) {
+    // Si parece un uuid (contiene guiones), suponer que es uuid y devolverlo
+    if (typeof perm === 'string' && perm.indexOf('-') > -1) return perm
+
+    // Buscar en permisosDisponibles por codigo o descripcion
+    const found = permisosDisponibles.value.find(p => (p.codigo && p.codigo === perm) || (p.descripcion && p.descripcion === perm))
+    if (found && (found.uuid || found.id)) return found.uuid || found.id
+
+    // Intentar crear permiso en backend
+    try {
+        const payload = { codigo: perm, descripcion: perm }
+        const res = await api.post('seguridad/permisos/', payload)
+        return res.data.uuid || res.data.id
+    } catch (err) {
+        console.error('No se pudo crear permiso manual:', perm, err)
+        return null
     }
 }
 
@@ -216,11 +325,17 @@ async function onSubmit() {
             descripcion: descripcion.value
         })
         
-        // Agregar permisos al rol
-        for (const permisoUuid of permisosSeleccionados.value) {
-            await api.post(`${path}${nuevoRol.data.uuid}/permisos/`, {
-                permiso_uuid: permisoUuid
-            })
+        // Agregar permisos al rol (asegurando que existan en backend)
+        for (const permiso of permisosSeleccionados.value) {
+            const permisoUuid = await ensurePermissionUuid(permiso)
+            if (!permisoUuid) continue
+            try {
+                await api.post(`${path}${nuevoRol.data.uuid}/permisos/`, {
+                    permiso_uuid: permisoUuid
+                })
+            } catch (e) {
+                console.error('Error asignando permiso al rol:', permisoUuid, e)
+            }
         }
         
         toolbar.value = false
@@ -268,12 +383,21 @@ async function onEdit() {
             }
         }
         
-        // Agregar nuevos permisos
-        for (const permisoUuid of permisosSeleccionados.value) {
+        // Agregar nuevos permisos (asegurando creación si fueron ingresados manualmente)
+        for (const permiso of permisosSeleccionados.value) {
+            // si ya estaba en permisosActuales, saltar
+            if (permisosActuales.includes(permiso)) continue
+            // convertir/crear permiso y obtener uuid
+            const permisoUuid = await ensurePermissionUuid(permiso)
+            if (!permisoUuid) continue
             if (!permisosActuales.includes(permisoUuid)) {
-                await api.post(`${path}${uuid.value}/permisos/`, {
-                    permiso_uuid: permisoUuid
-                })
+                try {
+                    await api.post(`${path}${uuid.value}/permisos/`, {
+                        permiso_uuid: permisoUuid
+                    })
+                } catch (e) {
+                    console.error('Error asignando permiso en edición:', permisoUuid, e)
+                }
             }
         }
         

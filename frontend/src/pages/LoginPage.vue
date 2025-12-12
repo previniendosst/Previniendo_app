@@ -182,19 +182,49 @@ async function submitReset() {
 }
 
 watch(
-  () => auth.rol,
-  (newRol) => {
+  () => [auth.rol, auth.permisos],
+  (newVal) => {
+    const [currentRol, currentPermisos] = newVal
     const { can, rules } = new AbilityBuilder(ability.constructor)
 
-    switch (newRol) {
-      case 'AD':
-        can('manage', 'all')
-        can(['create', 'read', 'update', 'delete', 'detail', 'finish'], ['Usuarios'])
-        break
-      default:
-        break
+    // Si el usuario es admin, le damos todos los permisos
+    if (currentRol === 'AD') {
+      can('manage', 'all')
+      ability.update(rules)
+      console.log('[LoginPage] Admin login - ability.rules:', rules)
+      return
     }
 
+    // Si el backend devolvió permisos, mapearlos a reglas CASL
+    if (currentPermisos && Array.isArray(currentPermisos) && currentPermisos.length > 0) {
+      for (const p of currentPermisos) {
+        // Estructura: { codigo: "CAN_READ_USUARIOS", accion: { codigo, descripcion }, sujeto: { codigo, descripcion } }
+        // El sujeto viene del backend (en el objeto p.sujeto.codigo), no del código
+        const accion = p.accion?.codigo || ''
+        const sujeto = p.sujeto?.codigo || ''
+        
+        if (accion && sujeto) {
+          const accionMap = {
+            'create': 'create',
+            'read': 'read',
+            'update': 'update',
+            'delete': 'delete',
+            'detail': 'detail',
+            'finish': 'finish'
+          }
+          const verb = accionMap[accion] || accion.toLowerCase()
+          can(verb, sujeto)
+          console.log(`[LoginPage] Adding rule: can('${verb}', '${sujeto}')`)
+        }
+      }
+      ability.update(rules)
+      console.log('[LoginPage] Non-admin login with permisos - ability.rules:', rules)
+      return
+    }
+
+    // Fallback: no hay permisos ni rol -> limpiar todas las reglas
+    // Esto ocurre cuando el usuario hace logout
+    console.log('[LoginPage] No permisos/rol - cleaning ability.rules')
     ability.update(rules)
   }
 )

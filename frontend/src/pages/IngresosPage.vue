@@ -61,6 +61,11 @@
                                     </q-td>
                                 </Can>
 
+                                <q-td key="documents" :props="props">
+                                    <q-btn round size="xs" color="secondary" icon="folder_open" label="Docs"
+                                        v-on:click="openDocuments(props.row)" />
+                                </q-td>
+
                                 <Can I="delete" an="Ingresos">
                                     <q-td key="delete" :props="props">
                                         <q-btn round size="xs" color="negative" icon="delete_forever"
@@ -151,7 +156,12 @@
             </q-card>
         </q-dialog>
 
-    </q-page>
+        <DocumentsModal
+          ref="docsModalRef"
+          v-model:modelValue="showDocuments"
+          :ingresoUuid="selectedIngresoUuid"
+          @uploaded="onDocumentsUploaded"
+        />    </q-page>
 </template>
 
 <style lang="scss"></style>
@@ -159,6 +169,7 @@
 <script setup>
 // Importacion de librerias
 import { ref, onMounted } from 'vue'
+import DocumentsModal from 'src/components/DocumentsModal.vue'
 import { api } from 'src/boot/axios'
 import { ability } from 'src/services/ability'
 import { useAuthStore } from 'src/stores/auth'
@@ -186,7 +197,10 @@ const columns = ref([
     { name: 'nit', align: 'center', label: 'NIT', field: 'nit', sortable: true },
     { name: 'nombre_admin', align: 'center', label: 'Administrador', field: 'nombre_admin', sortable: true },
     { name: 'correo', align: 'center', label: 'Correo', field: 'correo', sortable: true },
-    { name: 'telefono', align: 'center', label: 'Teléfono', field: 'telefono', sortable: true }
+    { name: 'telefono', align: 'center', label: 'Teléfono', field: 'telefono', sortable: true },
+    { name: 'edit', align: 'center', label: 'Editar', field: 'edit', sortable: false },
+    { name: 'documents', align: 'center', label: 'Documentos', field: 'documents', sortable: false },
+    { name: 'delete', align: 'center', label: 'Eliminar', field: 'delete', sortable: false }
 ])
 const data = ref([])
 const filter = ref(null)
@@ -195,6 +209,9 @@ const visible = ref(false)
 const form_ref = ref(null)
 const pagination = ref({ page: 1, rowsPerPage: 10 })
 const loadingOnSubmit = ref(false)
+const showDocuments = ref(false)
+const selectedIngresoUuid = ref(null)
+const docsModalRef = ref(null)
 
 onMounted(() => {
     loadTable()
@@ -218,12 +235,29 @@ async function loadSelectTipos() {
     }
 }
 
-function setColumns() {
-    if (ability.can('update', 'Ingresos')) {
-        columns.value.push({ name: 'edit', align: 'center', label: 'Editar', field: 'edit', sortable: true })
+function openDocuments(row) {
+    selectedIngresoUuid.value = row.uuid
+    // Llamar al método expuesto del modal para abrir y cargar carpetas
+    if (docsModalRef.value && typeof docsModalRef.value.open === 'function') {
+        docsModalRef.value.open(row.uuid)
+    } else {
+        // Fallback: usar v-model si el ref aún no está disponible
+        showDocuments.value = true
     }
-    if (ability.can('delete', 'Ingresos')) {
-        columns.value.push({ name: 'delete', align: 'center', label: 'Eliminar', field: 'delete', sortable: true })
+}
+
+function onDocumentsUploaded() {
+    // recargar tabla si es necesario
+    loadTable()
+}
+
+function setColumns() {
+    // Filtrar columnas según permisos
+    if (!ability.can('update', 'Ingresos')) {
+        columns.value = columns.value.filter(col => col.name !== 'edit')
+    }
+    if (!ability.can('delete', 'Ingresos')) {
+        columns.value = columns.value.filter(col => col.name !== 'delete')
     }
 }
 

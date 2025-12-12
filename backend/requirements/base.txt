@@ -15,3 +15,4 @@ drf-renderer-xlsx==0.4.1
 requests==2.22.0
 WeasyPrint==60.1
 openpyxl==3.0.10
+django-guardian==2.4.0
