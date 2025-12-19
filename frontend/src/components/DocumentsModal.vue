@@ -352,7 +352,8 @@ async function onUpload() {
       form.append('carpeta', selectedFolder.value)
       form.append('archivo', f)
       form.append('nombre_original', f.name)
-      await api.post('core/documents/upload/', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      // Let axios set the correct multipart Content-Type (with boundary)
+      await api.post('core/documents/upload/', form)
     }
     Notify.create({ type: 'positive', message: 'Archivos subidos correctamente' })
     emit('uploaded')
@@ -390,10 +391,26 @@ async function loadDocuments(folderUuid = null) {
   }
 }
 
-function openDocument(documento) {
-  previewFile.value = documento
-  previewDialog.value = true
+async function openDocument(documento) {
+  try {
+    const response = await api.get(`core/documents/${documento.uuid}/download/`, { responseType: 'blob' })
+    const contentType = response.headers['content-type'] || 'application/octet-stream'
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }))
+    previewFile.value = { ...documento, archivo: url }
+    previewDialog.value = true
+  } catch (err) {
+    console.error('Error previsualizando documento:', err)
+    Notify.create({ type: 'negative', message: 'No se pudo previsualizar el documento' })
+  }
 }
+
+// Revoke blob URL when dialog closes to avoid memory leaks
+watch(previewDialog, (val) => {
+  if (!val && previewFile.value && previewFile.value.archivo && previewFile.value.archivo.startsWith && previewFile.value.archivo.startsWith('blob:')) {
+    try { window.URL.revokeObjectURL(previewFile.value.archivo) } catch (e) { /* ignore */ }
+    previewFile.value = null
+  }
+})
 
 async function downloadDocument(documento) {
   try {

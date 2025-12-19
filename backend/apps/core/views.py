@@ -113,8 +113,11 @@ class DocumentUploadAPIView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request, format=None):
+        import logging
+        logger = logging.getLogger(__name__)
         serializer = DocumentUploadSerializer(data=request.data)
-        if serializer.is_valid():
+        try:
+            if serializer.is_valid():
             carpeta_uuid = serializer.validated_data.get('carpeta').uuid if serializer.validated_data.get('carpeta') else None
             carpeta = None
             if carpeta_uuid:
@@ -123,16 +126,24 @@ class DocumentUploadAPIView(APIView):
                 except DocumentFolder.DoesNotExist:
                     return Response({'detail': 'Carpeta no encontrada'}, status=status.HTTP_400_BAD_REQUEST)
 
-            document = Document.objects.create(
-                carpeta=serializer.validated_data.get('carpeta'),
-                archivo=serializer.validated_data.get('archivo'),
-                nombre_original=serializer.validated_data.get('nombre_original') or getattr(serializer.validated_data.get('archivo'), 'name', ''),
-                creado_por=request.user if request.user.is_authenticated else None
-            )
+            try:
+                document = Document.objects.create(
+                    carpeta=serializer.validated_data.get('carpeta'),
+                    archivo=serializer.validated_data.get('archivo'),
+                    nombre_original=serializer.validated_data.get('nombre_original') or getattr(serializer.validated_data.get('archivo'), 'name', ''),
+                    creado_por=request.user if request.user.is_authenticated else None
+                )
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).exception('Error al crear documento: %s', exc)
+                return Response({'detail': 'Error al guardar el archivo en el servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             out_serializer = DocumentSerializer(document)
             return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
+        except Exception as exc:
+            logger.exception('Error procesando la subida: %s', exc)
+            return Response({'detail': 'Error procesando la subida'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
