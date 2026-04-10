@@ -199,21 +199,23 @@ class AssignUserDocumentAccessAPIView(ListCreateAPIView):
         usuario_uuid = self.request.query_params.get('usuario')
         user = self.request.user
         
+        qs = UserDocumentAccess.objects.select_related('usuario', 'carpeta__ingreso').prefetch_related('carpeta__documents')
+
         # Si se proporciona usuario_uuid y el usuario actual es admin
         if usuario_uuid and user.rol == 'AD':
             User = get_user_model()
             try:
                 target_user = User.objects.get(uuid=usuario_uuid)
-                return UserDocumentAccess.objects.filter(usuario=target_user)
+                return qs.filter(usuario=target_user)
             except User.DoesNotExist:
                 return UserDocumentAccess.objects.none()
         
         # Si es admin, retornar todas
         if user.rol == 'AD':
-            return UserDocumentAccess.objects.all()
+            return qs
         
         # Si no es admin, solo sus propias asignaciones
-        return UserDocumentAccess.objects.filter(usuario=user)
+        return qs.filter(usuario=user)
 
     def create(self, request, *args, **kwargs):
         data = request.data
@@ -262,6 +264,58 @@ class UserDocumentAccessListAPIView(ListAPIView):
         
         # Retornar solo carpetas de sus ingresos
         return DocumentFolder.objects.filter(ingreso__in=user_ingresos)
+
+
+class UserFoldersByUserAPIView(APIView):
+    """Listar carpetas con documentos agrupadas por usuario para administradores"""
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, format=None):
+        user = request.user
+        if user.rol != 'AD':
+            return Response({'detail': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = UserDocumentAccess.objects.select_related('usuario', 'carpeta__ingreso').prefetch_related('carpeta__documents')
+        grouped = {}
+
+        for access in queryset:
+            usuario = access.usuario
+            user_key = str(usuario.uuid)
+
+            if user_key not in grouped:
+                nombre = ' '.join(
+                    part for part in [getattr(usuario, 'first_name', ''), getattr(usuario, 'last_name', '')] if part
+                ).strip() or getattr(usuario, 'username', None) or getattr(usuario, 'email', None) or ''
+
+                grouped[user_key] = {
+                    'usuario': {
+                        'uuid': user_key,
+                        'username': getattr(usuario, 'username', None),
+                        'email': getattr(usuario, 'email', None),
+                        'nombre': nombre,
+                    },
+                    'folders': {},
+                }
+
+            carpeta = access.carpeta
+            folder_key = str(carpeta.uuid)
+            group = grouped[user_key]
+
+            if folder_key not in group['folders']:
+                group['folders'][folder_key] = {
+                    'uuid': folder_key,
+                    'nombre': carpeta.nombre,
+                    'ingreso_nombre': carpeta.ingreso.nombre if carpeta.ingreso else '',
+                    'documents': DocumentSerializer(carpeta.documents.all(), many=True).data,
+                }
+
+        serialized_data = []
+        for group in grouped.values():
+            group['folders'] = sorted(group['folders'].values(), key=lambda x: x['nombre'] or '')
+            serialized_data.append(group)
+
+        serialized_data.sort(key=lambda x: x['usuario'].get('nombre') or x['usuario'].get('username') or '')
+        return Response(serialized_data, status=status.HTTP_200_OK)
 
 
 class DocumentDownloadAPIView(APIView):

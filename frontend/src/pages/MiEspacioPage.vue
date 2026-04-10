@@ -11,60 +11,87 @@
             <q-spinner-pie color="primary" size="70px" />
         </q-inner-loading>
 
-        <div v-if="!visible && carpetasConDocumentos.length > 0">
+        <div v-if="!visible && usuariosConAsignaciones.length > 0" class="row q-mb-md">
+            <div class="col-12 col-md-6">
+                <q-input
+                    outlined
+                    dense
+                    v-model="searchTerm"
+                    debounce="250"
+                    label="Buscar usuario, carpeta o documento"
+                    clearable
+                    clear-icon="close"
+                >
+                    <template v-slot:append>
+                        <q-icon name="search" />
+                    </template>
+                </q-input>
+            </div>
+        </div>
+
+        <div v-if="!visible && filteredUsuariosConAsignaciones.length > 0">
             <q-expansion-item
-                v-for="carpeta in carpetasConDocumentos"
-                :key="carpeta.uuid"
-                :icon="carpeta.expanded ? 'folder_open' : 'folder'"
-                :label="`${carpeta.nombre} (${carpeta.documents.length})`"
+                v-for="grupo in filteredUsuariosConAsignaciones"
+                :key="grupo.usuario.uuid"
+                :label="`${grupo.usuario.nombre || grupo.usuario.username} (${grupo.folders.length} carpetas)`"
+                :caption="grupo.usuario.email || 'Sin correo registrado'"
                 :header-class="'bg-primary text-white'"
                 class="q-mb-md"
             >
-                <q-list bordered separator>
-                    <q-item
-                        v-for="documento in carpeta.documents"
-                        :key="documento.uuid"
-                    >
-                        <q-item-section>
-                            <q-item-label>{{ documento.nombre_original }}</q-item-label>
-                            <q-item-label caption>{{ documento.created | formatDate }}</q-item-label>
-                        </q-item-section>
-                        <q-item-section side top>
-                            <div class="text-grey-8 q-gutter-xs">
-                                <q-btn
-                                    size="sm"
-                                    flat
-                                    dense
-                                    round
-                                    icon="visibility"
-                                    color="primary"
-                                    @click="verDocumento(documento)"
-                                    title="Ver documento"
-                                />
-                                <q-btn
-                                    size="sm"
-                                    flat
-                                    dense
-                                    round
-                                    icon="download"
-                                    color="positive"
-                                    @click="descargarDocumento(documento)"
-                                    title="Descargar documento"
-                                />
-                            </div>
-                        </q-item-section>
-                    </q-item>
-                </q-list>
+                <q-expansion-item
+                    v-for="carpeta in grupo.folders"
+                    :key="carpeta.uuid"
+                    :label="`${carpeta.nombre} (${carpeta.documents.length})`"
+                    :caption="carpeta.ingreso_nombre ? `Ingreso: ${carpeta.ingreso_nombre}` : ''"
+                    expand-separator
+                    class="q-mb-sm bg-grey-1"
+                >
+                    <q-list bordered separator>
+                        <q-item
+                            v-for="documento in carpeta.documents"
+                            :key="documento.uuid"
+                        >
+                            <q-item-section>
+                                <q-item-label>{{ documento.nombre_original }}</q-item-label>
+                                <q-item-label caption>{{ formatDate(documento.created) }}</q-item-label>
+                            </q-item-section>
+                            <q-item-section side top>
+                                <div class="text-grey-8 q-gutter-xs">
+                                    <q-btn
+                                        size="sm"
+                                        flat
+                                        dense
+                                        round
+                                        icon="visibility"
+                                        color="primary"
+                                        @click="verDocumento(documento)"
+                                        title="Ver documento"
+                                    />
+                                    <q-btn
+                                        size="sm"
+                                        flat
+                                        dense
+                                        round
+                                        icon="download"
+                                        color="positive"
+                                        @click="descargarDocumento(documento)"
+                                        title="Descargar documento"
+                                    />
+                                </div>
+                            </q-item-section>
+                        </q-item>
+                    </q-list>
+                </q-expansion-item>
             </q-expansion-item>
         </div>
 
-        <div v-if="!visible && carpetasConDocumentos.length === 0" class="row">
+        <div v-if="!visible && filteredUsuariosConAsignaciones.length === 0" class="row">
             <div class="col-12">
                 <q-banner class="bg-info text-white">
                     <template v-slot:avatar>
                         <q-icon name="info" />
                     </template>
-                    No tienes documentos asignados. Contacta con el administrador para que te asigne documentos.
+                    {{ noDocumentsMessage }}
                 </q-banner>
             </div>
         </div>
@@ -91,23 +118,74 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { api } from 'src/boot/axios'
 import { useAuthStore } from 'src/stores/auth'
 import { Notify } from 'quasar'
 
 const auth = useAuthStore()
 const visible = ref(false)
-const carpetasConDocumentos = ref([])
+const usuariosConAsignaciones = ref([])
 const dialogPreview = ref(false)
 const documentoSeleccionado = ref(null)
+const searchTerm = ref('')
+
+const filteredUsuariosConAsignaciones = computed(() => {
+    const term = searchTerm.value.trim().toLowerCase()
+    if (!term) {
+        return usuariosConAsignaciones.value
+    }
+
+    return usuariosConAsignaciones.value
+        .map((group) => {
+            const matchingFolders = group.folders
+                .map((folder) => {
+                    const matchingDocuments = folder.documents.filter((doc) => {
+                        return [doc.nombre_original]
+                            .filter(Boolean)
+                            .some((value) => value.toLowerCase().includes(term))
+                    })
+
+                    const folderMatches = [folder.nombre, folder.ingreso_nombre]
+                        .filter(Boolean)
+                        .some((value) => value.toLowerCase().includes(term))
+
+                    if (matchingDocuments.length > 0 || folderMatches) {
+                        return {
+                            ...folder,
+                            documents: matchingDocuments.length > 0 ? matchingDocuments : folder.documents,
+                        }
+                    }
+                    return null
+                })
+                .filter(Boolean)
+
+            const userMatches = [group.usuario.nombre, group.usuario.username, group.usuario.email]
+                .filter(Boolean)
+                .some((value) => value.toLowerCase().includes(term))
+
+            if (userMatches || matchingFolders.length > 0) {
+                return {
+                    ...group,
+                    folders: matchingFolders.length > 0 ? matchingFolders : group.folders,
+                }
+            }
+            return null
+        })
+        .filter(Boolean)
+})
+
+const noDocumentsMessage = computed(() => {
+    if (auth.isAdmin) {
+        return 'No hay asignaciones de carpetas o documentos para ningún usuario.'
+    }
+    return 'No tienes documentos asignados. Contacta con el administrador para que te asigne documentos.'
+})
 
 onMounted(() => {
     loadDocumentosUsuario()
 })
 
-// Revocar blob URL cuando se cierre el diálogo para evitar fugas de memoria
-import { watch } from 'vue'
 watch(dialogPreview, (val) => {
     if (!val && documentoSeleccionado.value && documentoSeleccionado.value.archivo && documentoSeleccionado.value.archivo.startsWith && documentoSeleccionado.value.archivo.startsWith('blob:')) {
         try { window.URL.revokeObjectURL(documentoSeleccionado.value.archivo) } catch (e) { /* ignore */ }
@@ -115,11 +193,42 @@ watch(dialogPreview, (val) => {
     }
 })
 
+function normalizeResponseData(response) {
+    if (Array.isArray(response.data)) {
+        return response.data
+    }
+    if (response.data && Array.isArray(response.data.results)) {
+        return response.data.results
+    }
+    return []
+}
+
 async function loadDocumentosUsuario() {
     visible.value = true
+    usuariosConAsignaciones.value = []
+
     try {
+        if (auth.isAdmin) {
+            try {
+                const response = await api.get('core/documents/user-folders-by-user/')
+                usuariosConAsignaciones.value = normalizeResponseData(response)
+                return
+            } catch (adminError) {
+                console.warn('Admin fallback to user-folders:', adminError)
+            }
+        }
+
         const response = await api.get('core/documents/user-folders/')
-        carpetasConDocumentos.value = response.data || []
+        const folders = normalizeResponseData(response)
+        usuariosConAsignaciones.value = [{
+            usuario: {
+                uuid: auth.isAdmin ? 'todos' : 'self',
+                nombre: auth.isAdmin ? 'Todos los documentos' : 'Mi Espacio',
+                username: '',
+                email: '',
+            },
+            folders,
+        }]
     } catch (error) {
         console.error('Error al cargar documentos:', error)
         Notify.create({
@@ -149,8 +258,6 @@ async function descargarDocumento(documento) {
         const response = await api.get(`core/documents/${documento.uuid}/download/`, {
             responseType: 'blob'
         })
-        
-        // Crear URL de descarga
         const url = window.URL.createObjectURL(new Blob([response.data]))
         const link = document.createElement('a')
         link.href = url
@@ -159,7 +266,6 @@ async function descargarDocumento(documento) {
         link.click()
         link.parentNode.removeChild(link)
         window.URL.revokeObjectURL(url)
-        
         Notify.create({
             type: 'positive',
             message: 'Documento descargado correctamente'
@@ -171,5 +277,15 @@ async function descargarDocumento(documento) {
             message: 'Error al descargar el documento'
         })
     }
+}
+
+function formatDate(value) {
+    if (!value) return ''
+    const date = new Date(value)
+    return date.toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit'
+    })
 }
 </script>

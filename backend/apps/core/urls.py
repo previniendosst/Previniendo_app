@@ -11,6 +11,7 @@ from .views import (
     DocumentRetrieveDestroyAPIView,
     AssignUserDocumentAccessAPIView,
     UserDocumentAccessListAPIView,
+    UserFoldersByUserAPIView,
     DocumentDownloadAPIView,
 )
 
@@ -25,5 +26,6 @@ urlpatterns = [
     path('documents/<uuid:uuid>/', DocumentRetrieveDestroyAPIView.as_view(), name='core-documents-detail-api'),
     path('documents/user-access/', AssignUserDocumentAccessAPIView.as_view(), name='core-documents-assign-user-access-api'),
     path('documents/user-folders/', UserDocumentAccessListAPIView.as_view(), name='core-documents-user-folders-api'),
+    path('documents/user-folders-by-user/', UserFoldersByUserAPIView.as_view(), name='core-documents-user-folders-by-user-api'),
     path('documents/<uuid:document_uuid>/download/', DocumentDownloadAPIView.as_view(), name='core-documents-download-api'),
 ]

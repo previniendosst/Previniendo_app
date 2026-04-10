@@ -66,17 +66,29 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 class UserDocumentAccessSerializer(serializers.ModelSerializer):
     carpeta = serializers.PrimaryKeyRelatedField(queryset=DocumentFolder.objects.all(), write_only=True)
     carpeta_info = serializers.SerializerMethodField(read_only=True)
+    carpeta_documents = DocumentSerializer(source='carpeta.documents', many=True, read_only=True)
+    usuario_info = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = UserDocumentAccess
-        fields = ['uuid', 'usuario', 'carpeta', 'carpeta_info', 'puede_descargar']
-        read_only_fields = ['uuid', 'usuario', 'carpeta_info']
+        fields = ['uuid', 'usuario', 'usuario_info', 'carpeta', 'carpeta_info', 'carpeta_documents', 'puede_descargar']
+        read_only_fields = ['uuid', 'usuario', 'usuario_info', 'carpeta_info', 'carpeta_documents']
 
     def get_carpeta_info(self, obj):
         return {
             'uuid': str(obj.carpeta.uuid),
             'nombre': obj.carpeta.nombre,
             'ingreso': obj.carpeta.ingreso.uuid if obj.carpeta.ingreso else None,
+            'ingreso_nombre': obj.carpeta.ingreso.nombre if obj.carpeta.ingreso else None,
+        }
+
+    def get_usuario_info(self, obj):
+        nombre = f"{obj.usuario.first_name or ''} {obj.usuario.last_name or ''}".strip()
+        return {
+            'uuid': str(obj.usuario.uuid),
+            'username': getattr(obj.usuario, 'username', None),
+            'email': getattr(obj.usuario, 'email', None),
+            'nombre': nombre or getattr(obj.usuario, 'username', None) or '',
         }
 
 
@@ -89,5 +101,10 @@ class DocumentFolderWithDocumentsSerializer(serializers.ModelSerializer):
         model = DocumentFolder
         fields = ['uuid', 'nombre', 'ingreso_nombre', 'documents', 'created']
         read_only_fields = ['uuid', 'documents', 'ingreso_nombre', 'created']
+
+
+class UserAssignedFoldersSerializer(serializers.Serializer):
+    usuario = serializers.DictField()
+    folders = DocumentFolderWithDocumentsSerializer(many=True)
 
 
