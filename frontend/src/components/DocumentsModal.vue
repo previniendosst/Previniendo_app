@@ -55,25 +55,52 @@
             Cargar Archivos
           </div>
           
-          <div class="row q-col-gutter-lg">
+          <div class="row q-col-gutter-lg items-end">
             <!-- Selector de Carpeta -->
             <div class="col-12 col-md-5">
-              <q-select
-                filled
-                dense
-                v-model="selectedFolder"
-                :options="foldersOptions"
-                option-value="uuid"
-                option-label="nombre"
-                emit-value
-                map-options
-                @update:model-value="onFolderSelected"
-                label="Selecciona una carpeta"
-                :disable="folders.length === 0"
-              />
-              <q-item-label v-if="folders.length === 0" caption class="q-mt-sm text-warning">
-                Crea una carpeta primero
-              </q-item-label>
+              <div class="row items-center q-col-gutter-sm">
+                <div class="col">
+                  <q-select
+                    filled
+                    dense
+                    v-model="selectedFolder"
+                    :options="foldersOptions"
+                    option-value="uuid"
+                    option-label="nombre"
+                    emit-value
+                    map-options
+                    @update:model-value="onFolderSelected"
+                    label="Selecciona una carpeta"
+                    :disable="folders.length === 0"
+                  >
+                    <template v-slot:append>
+                      <q-btn
+                        dense
+                        flat
+                        round
+                        icon="edit"
+                        color="primary"
+                        @click.stop.prevent="onEditFolder()"
+                        :disable="!selectedFolderUuid"
+                        title="Editar carpeta"
+                      />
+                      <q-btn
+                        dense
+                        flat
+                        round
+                        icon="delete_forever"
+                        color="negative"
+                        @click.stop.prevent="onDeleteFolder()"
+                        :disable="!selectedFolderUuid"
+                        title="Eliminar carpeta"
+                      />
+                    </template>
+                  </q-select>
+                  <q-item-label v-if="folders.length === 0" caption class="q-mt-sm text-warning">
+                    Crea una carpeta primero
+                  </q-item-label>
+                </div>
+              </div>
             </div>
 
             <!-- Uploader -->
@@ -96,7 +123,6 @@
 
         <q-separator v-if="isAdmin" class="q-my-lg" />
 
-        <!-- Sección 3: Documentos Cargados -->
         <div v-if="documents.length > 0">
           <div class="text-subtitle1 text-weight-bold q-mb-md">
             <q-icon name="description" color="primary" class="q-mr-sm" />
@@ -143,6 +169,17 @@
                       color="positive"
                       @click="downloadDocument(props.row)"
                       title="Descargar documento"
+                    />
+                    <q-btn
+                      v-if="isAdmin"
+                      size="sm"
+                      flat
+                      dense
+                      round
+                      icon="delete_forever"
+                      color="negative"
+                      @click="onDeleteDocument(props.row)"
+                      title="Eliminar documento"
                     />
                   </div>
                 </q-td>
@@ -197,6 +234,31 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <q-dialog v-model="renameDialog" persistent>
+      <q-card style="min-width: 420px; max-width: 90vw; border-radius: 12px;">
+        <q-card-section class="row items-center">
+          <div class="text-h6">Renombrar Carpeta</div>
+          <q-space />
+          <q-btn icon="close" flat round dense @click="closeRenameDialog" />
+        </q-card-section>
+
+        <q-card-section>
+          <q-input
+            filled
+            v-model="renameFolderName"
+            label="Nuevo nombre de carpeta"
+            lazy-rules
+            :rules="[val => val && val.length > 0 || 'El campo es obligatorio']"
+          />
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="negative" @click="closeRenameDialog" />
+          <q-btn unelevated label="Guardar" color="primary" @click="saveFolderName" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-dialog>
 </template>
 
@@ -240,6 +302,9 @@ const uploader = ref(null)
 const documents = ref([])
 const previewDialog = ref(false)
 const previewFile = ref(null)
+const renameDialog = ref(false)
+const renameFolderName = ref('')
+const editingFolder = ref(null)
 const tablePagination = ref({ rowsPerPage: 10 })
 
 const docColumns = [
@@ -306,10 +371,28 @@ function open(ingresoUuid) {
 defineExpose({ open })
 
 const foldersOptions = computed(() => folders.value)
+const selectedFolderUuid = computed(() => {
+  if (!selectedFolder.value) return null
+  return typeof selectedFolder.value === 'string' ? selectedFolder.value : selectedFolder.value.uuid
+})
+const currentFolder = computed(() => folders.value.find(folder => folder.uuid === selectedFolderUuid.value) || null)
+
+function getFolderUuid(folderOrUuid) {
+  if (!folderOrUuid) return null
+  return typeof folderOrUuid === 'string' ? folderOrUuid : folderOrUuid.uuid
+}
+
+function selectFolder(folder) {
+  const uuid = getFolderUuid(folder)
+  selectedFolder.value = uuid
+  loadDocuments(uuid)
+}
 
 async function onFolderSelected(uuid) {
-  if (uuid) {
-    await loadDocuments(uuid)
+  const folderUuid = getFolderUuid(uuid)
+  selectedFolder.value = folderUuid
+  if (folderUuid) {
+    await loadDocuments(folderUuid)
   }
 }
 
@@ -319,10 +402,11 @@ async function onCreateFolder() {
     return
   }
   try {
-    const payload = { ingreso: props.ingresoUuid, nombre: newFolderName.value }
+    const ingresoUuid = internalIngresoUuid.value || props.ingresoUuid
+    const payload = { ingreso: ingresoUuid, nombre: newFolderName.value }
     await api.post('core/documents/folders/', payload)
     newFolderName.value = ''
-    await loadFolders()
+    await loadFolders(ingresoUuid)
     Notify.create({ type: 'positive', message: 'Carpeta creada correctamente' })
   } catch (err) {
     console.error('Error creando carpeta:', err)
@@ -337,7 +421,7 @@ function close() {
 const MAX_FILE_SIZE = 26214400 // 25 MB
 
 async function onUpload() {
-  if (!selectedFolder.value) {
+  if (!selectedFolderUuid.value) {
     Notify.create({ type: 'warning', message: 'Selecciona una carpeta' })
     return
   }
@@ -359,7 +443,7 @@ async function onUpload() {
   try {
     for (const f of files) {
       const form = new FormData()
-      form.append('carpeta', selectedFolder.value)
+      form.append('carpeta', selectedFolderUuid.value)
       form.append('archivo', f)
       form.append('nombre_original', f.name)
       // Let axios set the correct multipart Content-Type (with boundary)
@@ -368,7 +452,7 @@ async function onUpload() {
     Notify.create({ type: 'positive', message: 'Archivos subidos correctamente' })
     emit('uploaded')
     uploader.value.reset()
-    await loadDocuments(selectedFolder.value)
+    await loadDocuments(selectedFolderUuid.value)
   } catch (err) {
     console.error('Error al subir archivos:', err)
     // Mensajes más claros: 413 (Nginx) -> archivo demasiado grande del lado del servidor
@@ -393,7 +477,7 @@ function uploaderFactory() {
 }
 
 async function loadDocuments(folderUuid = null) {
-  const uuid = folderUuid || selectedFolder.value
+  const uuid = folderUuid || selectedFolderUuid.value
   if (!uuid) {
     documents.value = []
     return
@@ -451,6 +535,78 @@ async function downloadDocument(documento) {
   }
 }
 
+async function onDeleteFolder(folder = null) {
+  const folderUuid = getFolderUuid(folder || selectedFolder.value)
+  if (!folderUuid) {
+    Notify.create({ type: 'warning', message: 'Selecciona primero una carpeta para eliminar.' })
+    return
+  }
+
+  const confirmed = window.confirm('¿Estás seguro de que deseas eliminar esta carpeta y todos sus documentos?')
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    await api.delete(`core/documents/folders/${folderUuid}/`)
+    Notify.create({ type: 'positive', message: 'Carpeta eliminada correctamente.' })
+    await loadFolders(internalIngresoUuid.value)
+  } catch (err) {
+    console.error('Error eliminando carpeta:', err)
+    const reason = err?.response?.data?.detail || err?.message || 'No se pudo eliminar la carpeta.'
+    Notify.create({ type: 'negative', message: reason })
+  }
+}
+
+function onEditFolder(folder = null) {
+  const target = folder || currentFolder.value
+  if (!target) return
+  editingFolder.value = target
+  renameFolderName.value = target.nombre || ''
+  renameDialog.value = true
+}
+
+async function saveFolderName() {
+  const folderUuid = getFolderUuid(editingFolder.value)
+  if (!folderUuid || !renameFolderName.value.trim()) {
+    Notify.create({ type: 'warning', message: 'El nombre de la carpeta no puede quedar vacío.' })
+    return
+  }
+
+  try {
+    await api.patch(`core/documents/folders/${folderUuid}/`, { nombre: renameFolderName.value })
+    Notify.create({ type: 'positive', message: 'Nombre de carpeta actualizado.' })
+    renameDialog.value = false
+    editingFolder.value = null
+    await loadFolders(internalIngresoUuid.value)
+  } catch (err) {
+    console.error('Error actualizando carpeta:', err)
+    Notify.create({ type: 'negative', message: 'No se pudo actualizar el nombre de la carpeta.' })
+  }
+}
+
+function closeRenameDialog() {
+  renameDialog.value = false
+  editingFolder.value = null
+  renameFolderName.value = ''
+}
+
+async function onDeleteDocument(documento) {
+  const confirmed = window.confirm(`¿Eliminar el documento "${documento.nombre_original || documento.uuid}"?`)
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    await api.delete(`core/documents/${documento.uuid}/`)
+    Notify.create({ type: 'positive', message: 'Documento eliminado correctamente.' })
+    await loadDocuments(selectedFolderUuid.value)
+  } catch (err) {
+    console.error('Error eliminando documento:', err)
+    Notify.create({ type: 'negative', message: 'No se pudo eliminar el documento.' })
+  }
+}
+
 function formatDate(dateString) {
   if (!dateString) return '-'
   return new Date(dateString).toLocaleDateString('es-CO', { 
@@ -461,7 +617,7 @@ function formatDate(dateString) {
     minute: '2-digit'
   })
 }
-</script>
+  </script>
 
 <style scoped>
 :deep(.q-dialog__inner) {

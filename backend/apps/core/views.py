@@ -173,6 +173,22 @@ class DocumentListByFolderAPIView(ListCreateAPIView):
         serializer.save(creado_por=self.request.user)
 
 
+class DocumentFolderRetrieveDestroyAPIView(RetrieveUpdateDestroyAPIView):
+    """Obtener o eliminar una carpeta de documentos"""
+    queryset = DocumentFolder.objects.all()
+    serializer_class = DocumentFolderSerializer
+    permission_classes = (IsAuthenticated,)
+    lookup_field = 'uuid'
+
+
+class DocumentRetrieveDestroyAPIView(RetrieveUpdateDestroyAPIView):
+    """Obtener o eliminar un documento"""
+    queryset = Document.objects.all()
+    serializer_class = DocumentSerializer
+    permission_classes = (IsAuthenticated,)
+    lookup_field = 'uuid'
+
+
 class AssignUserDocumentAccessAPIView(ListCreateAPIView):
     """Crear acceso de usuario a carpeta de documentos / Listar asignaciones"""
     queryset = Document.objects.none()

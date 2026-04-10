@@ -62,7 +62,7 @@
                                 </Can>
 
                                 <q-td key="documents" :props="props">
-                                    <q-btn round size="xs" color="secondary" icon="folder_open" label="Docs"
+                                    <q-btn round size="xs" color="secondary" icon="folder_open"
                                         v-on:click="openDocuments(props.row)" />
                                 </q-td>
 

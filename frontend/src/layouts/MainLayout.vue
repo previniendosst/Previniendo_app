@@ -54,16 +54,45 @@
 
         <q-separator />
 
-        <Can I="read" an="Usuarios">
-          <q-item clickable :to="{ name: 'usuarios' }" exact v-ripple exact-active-class="text-white bg-primary">
-            <q-item-section avatar>
-              <q-icon name="person" />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label>Usuarios</q-item-label>
-            </q-item-section>
-          </q-item>
-        </Can>
+        <template v-if="canReadUsuarios || canReadRoles">
+          <q-expansion-item
+            class="text-white"
+            expand-icon="expand_more"
+            switch-toggle-side
+            dense
+            label="Usuarios"
+          >
+            <q-list class="text-white">
+              <Can I="read" an="Usuarios">
+                <q-item 
+                  inset-level="0.5"
+                  clickable :to="{ name: 'usuarios' }" exact v-ripple exact-active-class="text-white bg-primary"
+                >
+                  <q-item-section avatar>
+                    <q-icon name="person" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label>Usuarios</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </Can>
+
+              <Can I="read" an="Roles">
+                <q-item 
+                  inset-level="0.5"
+                  clickable :to="{ name: 'roles' }" exact v-ripple exact-active-class="text-white bg-primary"
+                >
+                  <q-item-section avatar>
+                    <q-icon name="security" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label>Roles</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </Can>
+            </q-list>
+          </q-expansion-item>
+        </template>
 
         <Can I="read" an="Ingresos">
           <q-item clickable :to="{ name: 'ingresos' }" exact v-ripple exact-active-class="text-white bg-primary">
@@ -72,17 +101,6 @@
             </q-item-section>
             <q-item-section>
               <q-item-label>Ingresos</q-item-label>
-            </q-item-section>
-          </q-item>
-        </Can>
-
-        <Can I="read" an="Roles">
-          <q-item clickable :to="{ name: 'roles' }" exact v-ripple exact-active-class="text-white bg-primary">
-            <q-item-section avatar>
-              <q-icon name="security" />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label>Roles</q-item-label>
             </q-item-section>
           </q-item>
         </Can>
@@ -158,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { api } from 'src/boot/axios'
 import { useAuthStore } from 'src/stores/auth'
 import { useRouter } from 'vue-router'
@@ -166,6 +184,8 @@ import { ability } from 'src/services/ability'
 
 const auth = useAuthStore()
 const router = useRouter()
+const canReadUsuarios = computed(() => ability.can('read', 'Usuarios'))
+const canReadRoles = computed(() => ability.can('read', 'Roles'))
 
 // Constante de path para la API
 const path = 'seguridad/perfil/'

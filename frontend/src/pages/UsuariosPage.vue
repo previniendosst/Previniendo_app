@@ -92,27 +92,31 @@
 
                 <q-card-section class="col overflow-auto">
                     <q-form ref="form_ref" @submit.prevent="onSubmit">
-                        <div class="row justify-around">
+                        <div class="row justify-around q-gutter-md">
                             <div class="col-md-5">
                                 <q-input filled v-model="username" label="Usuario *" lazy-rules
                                     :rules="[val => val && val.length > 0 || 'El campo es obligatorio']" />
                             </div>
                             <div class="col-md-5">
-                                <q-input filled v-model="first_name" label="Nombres *" lazy-rules
+                                <q-input filled v-model="email" type="email" label="Correo electrónico *" lazy-rules
                                     :rules="[val => val && val.length > 0 || 'El campo es obligatorio']" />
                             </div>
                         </div>
-                        <div class="row justify-around">
+                        <div class="row justify-around q-gutter-md">
+                            <div class="col-md-5">
+                                <q-input filled v-model="first_name" label="Nombres *" lazy-rules
+                                    :rules="[val => val && val.length > 0 || 'El campo es obligatorio']" />
+                            </div>
                             <div class="col-md-5">
                                 <q-input filled v-model="last_name" label="Apellidos *" lazy-rules
                                     :rules="[val => val && val.length > 0 || 'El campo es obligatorio']" />
                             </div>
-                            <div class="col-md-5">
-                                <q-input filled v-model="email" label="Correo electrónico *" lazy-rules
+                        </div>
+                        <div class="row justify-around q-gutter-md">
+                            <div class="col-md-5" v-if="!isEditing">
+                                <q-input filled v-model="password" label="Contraseña *" type="password" lazy-rules
                                     :rules="[val => val && val.length > 0 || 'El campo es obligatorio']" />
                             </div>
-                        </div>
-                        <div class="row justify-around">
                             <div class="col-md-5">
                                 <q-select
                                     filled
@@ -124,8 +128,6 @@
                                     clearable
                                     :loading="loadingRoles"
                                 />
-                            </div>
-                            <div class="col-md-5">
                             </div>
                         </div>
                         <div class="row justify-around">
@@ -342,6 +344,7 @@ const username = ref(null)
 const first_name = ref(null)
 const last_name = ref(null)
 const email = ref(null)
+const password = ref(null)
 const rolSistema = ref(null)
 const optionsRoles = ref([])
 const filterOptionsRoles = ref([])
@@ -467,6 +470,9 @@ async function onSubmit() {
             rol_sistema: rolSistemaValue,
             ingresos: ingresosSeleccionados.value.map(i => i.uuid)
         }
+        if (password.value) {
+            payload.password = password.value
+        }
         console.log('Datos que se envían:', JSON.stringify(payload, null, 2))
         console.log('rolSistema value:', rolSistema.value)
         console.log('rolSistemaValue extraído:', rolSistemaValue)
@@ -540,14 +546,19 @@ async function onEdit() {
             }
         }
         
-        await api.put(path + uuid.value + '/', {
+        const payload = {
             username: username.value,
             first_name: first_name.value,
             last_name: last_name.value,
             email: email.value,
             rol_sistema: rolSistemaValue,
             ingresos: ingresosSeleccionados.value.map(i => i.uuid)
-        })
+        }
+        if (password.value) {
+            payload.password = password.value
+        }
+
+        await api.put(path + uuid.value + '/', payload)
         
         // Cerrar el diálogo INMEDIATAMENTE
         toolbar.value = false
@@ -635,6 +646,7 @@ function onReset() {
     first_name.value = null
     last_name.value = null
     email.value = null
+    password.value = null
     rolSistema.value = null
     rol.value = null
     ingresosSeleccionados.value = []
@@ -667,6 +679,7 @@ function editing(row) {
     } else {
         ingresosSeleccionados.value = []
     }
+    password.value = null
     console.log('Abriendo modal de edición para usuario:', row.username)
     toolbar.value = true
 }

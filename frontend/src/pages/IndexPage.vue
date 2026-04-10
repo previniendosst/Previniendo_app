@@ -1,23 +1,22 @@
 <template>
-  <q-page class="q-pa-md q-gutter-sm page-pdf-viewer">
-    <div class="pdf-container">
-      <div v-if="loading" class="text-center q-pa-md">
+  <q-page class="page-pdf-viewer q-pa-none">
+    <div class="pdf-root">
+      <div v-if="loading" class="loader-overlay">
         Cargando documento...
       </div>
 
-      <div v-else>
-        <iframe
-          v-if="available"
-          :src="pdfUrl"
-          class="pdf-frame"
-          frameborder="0"
-        ></iframe>
+      <iframe
+        v-if="available"
+        :src="pdfUrl + pdfQuery"
+        class="pdf-frame"
+        frameborder="0"
+        loading="lazy"
+      ></iframe>
 
-        <div v-else class="q-pa-md text-center">
-          <p>El documento no está disponible en el servidor.</p>
-          <p>Por favor agrega el archivo <code>Brochure_previniendo.pdf</code> en <code>/frontend/public/</code> o en la carpeta pública del servidor y recarga la página.</p>
-          <q-btn color="primary" :disable="!pdfExistsRemote" @click="openInNewTab" label="Abrir PDF en nueva pestaña" />
-        </div>
+      <div v-else class="error-overlay">
+        <p>El documento no está disponible en el servidor.</p>
+        <p>Por favor agrega el archivo <code>Brochure_previniendo.pdf</code> en <code>/frontend/public/</code> o en la carpeta pública del servidor y recarga la página.</p>
+        <q-btn color="primary" :disable="!pdfExistsRemote" @click="openInNewTab" label="Abrir PDF en nueva pestaña" />
       </div>
     </div>
   </q-page>
@@ -25,25 +24,42 @@
 
 <style scoped>
 .page-pdf-viewer {
-  /* Usar min-height para que el contenedor ocupe al menos la ventana
-     sin depender de alturas padre que podrían no estar definidas. */
+  position: relative;
   min-height: calc(100vh - 64px);
-  display: flex;
-  flex-direction: column;
+  height: calc(100vh - 64px);
+  width: 100%;
+  overflow: hidden;
 }
-.pdf-container {
+.pdf-root {
+  position: absolute;
+  inset: 0;
   display: flex;
-  flex-direction: column;
-  /* Permitir que el contenedor crezca y que el iframe ocupe todo el espacio */
-  flex: 1 1 auto;
-  min-height: calc(100vh - 64px);
+  align-items: stretch;
+  justify-content: stretch;
+  background-color: #111;
 }
 .pdf-frame {
   flex: 1 1 auto;
   width: 100%;
   height: 100%;
-  min-height: 60vh;
   border: none;
+  min-height: 0;
+}
+.loader-overlay,
+.error-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.95);
+  z-index: 1;
+}
+.error-overlay p {
+  margin: 8px 0;
 }
 </style>
 
@@ -51,56 +67,46 @@
 import { ref, onMounted } from 'vue'
 
 const pdfFileName = 'Brochure_previniendo.pdf'
-// Intentamos primero en la raíz (desarrollo Quasar), si no existe probamos /public/ (producción nginx)
 const pdfUrls = [`/${pdfFileName}`, `/public/${pdfFileName}`]
 const pdfUrl = ref('')
-
+const pdfExistsRemote = ref(false)
 const loading = ref(true)
 const available = ref(false)
-const pdfExistsRemote = ref(false)
+const pdfQuery = '#toolbar=0&navpanes=0&scrollbar=0'
 
 async function checkPdf() {
-  try {
-    for (const url of pdfUrls) {
-      try {
-        const resp = await fetch(url, { method: 'HEAD' })
-        // Verificar que no se trata del index.html (algunos servidores dev devuelven 200 para todo)
-        const ct = resp.headers.get('content-type') || ''
-        if (resp && resp.ok && ct.toLowerCase().includes('pdf')) {
-          pdfUrl.value = url
-          available.value = true
-          pdfExistsRemote.value = true
-          break
-        }
-        // Si HEAD no devuelve PDF o no es permitido, intentar GET pequeño y validar content-type
-        const r2 = await fetch(url, { method: 'GET' })
-        const ct2 = r2.headers.get('content-type') || ''
-        if (r2 && r2.ok && ct2.toLowerCase().includes('pdf')) {
-          pdfUrl.value = url
-          available.value = true
-          pdfExistsRemote.value = true
-          break
-        }
-      } catch (innerErr) {
-        // Ignorar y probar siguiente URL
+  for (const url of pdfUrls) {
+    try {
+      const resp = await fetch(url, { method: 'HEAD' })
+      const ct = resp.headers.get('content-type') || ''
+      if (resp && resp.ok && ct.toLowerCase().includes('pdf')) {
+        pdfUrl.value = url
+        pdfExistsRemote.value = true
+        return true
       }
+      const r2 = await fetch(url, { method: 'GET' })
+      const ct2 = r2.headers.get('content-type') || ''
+      if (r2 && r2.ok && ct2.toLowerCase().includes('pdf')) {
+        pdfUrl.value = url
+        pdfExistsRemote.value = true
+        return true
+      }
+    } catch (err) {
+      // ignore and try next URL
     }
-    if (!available.value) {
-      pdfUrl.value = ''
-    }
-  } catch (err) {
-    available.value = false
-    pdfUrl.value = ''
-  } finally {
-    loading.value = false
   }
+  return false
 }
 
 function openInNewTab() {
-  window.open(pdfUrl, '_blank')
+  if (pdfUrl.value) {
+    window.open(pdfUrl.value, '_blank')
+  }
 }
 
-onMounted(() => {
-  checkPdf()
+onMounted(async () => {
+  const exists = await checkPdf()
+  available.value = exists
+  loading.value = false
 })
 </script>

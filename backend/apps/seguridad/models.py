@@ -192,8 +192,10 @@ class Usuario(AbstractUser, TimeStampedModel):
         skip_initial = getattr(self, '_skip_email_on_create', False)
         super(Usuario, self).save(*args, **kwargs)
 
+        # Ya no se genera ni envía una contraseña inicial automáticamente al crear usuarios.
+        # La contraseña se debe proporcionar manualmente en el formulario de creación.
         if creando and not skip_initial:
-            self.generar_nueva_clave()
+            pass
 
     def generar_nueva_clave(self):
         password = generar_cadena_aleatoria(6)

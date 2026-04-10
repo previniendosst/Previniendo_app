@@ -112,13 +112,21 @@ class UsuarioCreateUpdateSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True, style={'input_type': 'password'})
     
     class Meta:
         model = Usuario
-        fields = ['uuid', 'username', 'first_name', 'last_name', 'email', 'rol_sistema', 'ingresos']
+        fields = ['uuid', 'username', 'first_name', 'last_name', 'email', 'rol_sistema', 'ingresos', 'password']
+
+    def validate(self, attrs):
+        if self.instance is None and not attrs.get('password'):
+            raise serializers.ValidationError({'password': 'La contraseña es obligatoria.'})
+        return attrs
 
     def create(self, validated_data):
         ingresos = validated_data.pop('ingresos', [])
+        password = validated_data.pop('password', None)
+
         # Ensure legacy 'rol' DB column is populated to avoid integrity errors
         # if the field is not present / migrations expect NOT NULL. Use an
         # empty string as safe default when no explicit legacy role is set.
@@ -126,7 +134,10 @@ class UsuarioCreateUpdateSerializer(serializers.ModelSerializer):
             validated_data['rol'] = ''
 
         usuario = super().create(validated_data)
-        
+        if password:
+            usuario.set_password(password)
+            usuario.save()
+
         for ingreso in ingresos:
             UsuarioIngreso.objects.create(usuario=usuario, ingreso=ingreso)
         
@@ -134,12 +145,17 @@ class UsuarioCreateUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         ingresos = validated_data.pop('ingresos', None)
+        password = validated_data.pop('password', None)
+
         # Defensive: ensure legacy 'rol' is not set to None if DB schema
         # requires a non-null value.
         if 'rol' in validated_data and validated_data.get('rol') is None:
             validated_data['rol'] = ''
 
         usuario = super().update(instance, validated_data)
+        if password:
+            usuario.set_password(password)
+            usuario.save()
         
         if ingresos is not None:
             UsuarioIngreso.objects.filter(usuario=usuario).delete()
