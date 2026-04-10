@@ -1,0 +1,10 @@
+.env
+.env.*
+*.pyc
+__pycache__/
+/.venv
+/node_modules
+/dist
+build/
+# Ignore local production env file
+.env.production

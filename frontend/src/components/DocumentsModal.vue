@@ -87,7 +87,7 @@
                   ref="uploader"
                   :hide-upload-btn="true"
                   class="full-width"
-                  max-file-size="52428800"
+                  max-file-size="26214400"
                 />
               </div>
             </div>
@@ -334,6 +334,8 @@ function close() {
   show.value = false
 }
 
+const MAX_FILE_SIZE = 26214400 // 25 MB
+
 async function onUpload() {
   if (!selectedFolder.value) {
     Notify.create({ type: 'warning', message: 'Selecciona una carpeta' })
@@ -343,6 +345,14 @@ async function onUpload() {
   if (!files.length) {
     Notify.create({ type: 'warning', message: 'Selecciona al menos un archivo' })
     return
+  }
+
+  // Validar tamaño en cliente antes de subir
+  for (const f of files) {
+    if (f.size > MAX_FILE_SIZE) {
+      Notify.create({ type: 'negative', message: `El archivo ${f.name} excede el tamaño máximo de 25 MB` })
+      return
+    }
   }
 
   uploading.value = true
@@ -361,7 +371,14 @@ async function onUpload() {
     await loadDocuments(selectedFolder.value)
   } catch (err) {
     console.error('Error al subir archivos:', err)
-    Notify.create({ type: 'negative', message: 'Error al subir los archivos' })
+    // Mensajes más claros: 413 (Nginx) -> archivo demasiado grande del lado del servidor
+    let msg = 'Error al subir los archivos'
+    if (err?.response?.status === 413) {
+      msg = 'El archivo excede el límite permitido por el servidor (demasiado grande)'
+    } else {
+      msg = err.response?.data?.archivo || err.response?.data?.detail || msg
+    }
+    Notify.create({ type: 'negative', message: msg })
   } finally {
     uploading.value = false
   }
@@ -393,7 +410,7 @@ async function loadDocuments(folderUuid = null) {
 
 async function openDocument(documento) {
   try {
-    const response = await api.get(`core/documents/${documento.uuid}/download/`, { responseType: 'blob' })
+    const response = await api.get(`core/documents/${documento.uuid}/download/?inline=1`, { responseType: 'blob' })
     const contentType = response.headers['content-type'] || 'application/octet-stream'
     const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }))
     previewFile.value = { ...documento, archivo: url }

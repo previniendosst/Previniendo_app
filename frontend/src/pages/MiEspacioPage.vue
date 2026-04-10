@@ -106,6 +106,15 @@ onMounted(() => {
     loadDocumentosUsuario()
 })
 
+// Revocar blob URL cuando se cierre el diálogo para evitar fugas de memoria
+import { watch } from 'vue'
+watch(dialogPreview, (val) => {
+    if (!val && documentoSeleccionado.value && documentoSeleccionado.value.archivo && documentoSeleccionado.value.archivo.startsWith && documentoSeleccionado.value.archivo.startsWith('blob:')) {
+        try { window.URL.revokeObjectURL(documentoSeleccionado.value.archivo) } catch (e) { /* ignore */ }
+        documentoSeleccionado.value = null
+    }
+})
+
 async function loadDocumentosUsuario() {
     visible.value = true
     try {
@@ -122,9 +131,17 @@ async function loadDocumentosUsuario() {
     }
 }
 
-function verDocumento(documento) {
-    documentoSeleccionado.value = documento
-    dialogPreview.value = true
+async function verDocumento(documento) {
+    try {
+        const response = await api.get(`core/documents/${documento.uuid}/download/?inline=1`, { responseType: 'blob' })
+        const contentType = response.headers['content-type'] || 'application/octet-stream'
+        const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }))
+        documentoSeleccionado.value = { ...documento, archivo: url }
+        dialogPreview.value = true
+    } catch (error) {
+        console.error('Error al previsualizar:', error)
+        Notify.create({ type: 'negative', message: 'No se pudo previsualizar el documento' })
+    }
 }
 
 async function descargarDocumento(documento) {

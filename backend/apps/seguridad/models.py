@@ -257,7 +257,11 @@ class Usuario(AbstractUser, TimeStampedModel):
                                 'content': [
                                     {'type': 'text/plain', 'value': text_content or ' '},
                                     {'type': 'text/html', 'value': mensaje}
-                                ]
+                                ],
+                                'reply_to': {'email': settings.DEFAULT_FROM_EMAIL},
+                                'headers': {
+                                    'List-Unsubscribe': f'<mailto:{settings.DEFAULT_FROM_EMAIL}?subject=unsubscribe>'
+                                }
                             }
                             # Adjuntar logo inline si está disponible (para evitar que clientes bloqueen imágenes remotas)
                             try:
@@ -272,7 +276,7 @@ class Usuario(AbstractUser, TimeStampedModel):
                                         'type': mime,
                                         'filename': 'escudo_itagui.png',
                                         'disposition': 'inline',
-                                        'content_id': 'escudo_itagui'
+                                        'content_id': '<escudo_itagui>'
                                     }]
                             except Exception:
                                 logger.exception('No se pudo adjuntar imagen inline para SendGrid')
@@ -289,6 +293,11 @@ class Usuario(AbstractUser, TimeStampedModel):
                         logger.warning('SENDGRID_PRIMARY está activo pero no se encontró SENDGRID_API_KEY en el entorno')
 
                 msg = EmailMultiAlternatives(subject=subject, body=text_content or ' ', from_email=settings.DEFAULT_FROM_EMAIL, to=[self.email], connection=connection)
+                # Headers útiles para entregabilidad
+                msg.extra_headers = {
+                    'Reply-To': settings.DEFAULT_FROM_EMAIL,
+                    'List-Unsubscribe': f'<mailto:{settings.DEFAULT_FROM_EMAIL}?subject=unsubscribe>'
+                }
                 msg.attach_alternative(mensaje, "text/html")
                 # Adjuntar imagen inline para clientes que respeten Content-ID
                 try:
@@ -360,7 +369,11 @@ class Usuario(AbstractUser, TimeStampedModel):
                                             'content': [
                                                 {'type': 'text/plain', 'value': text_content or ' '},
                                                 {'type': 'text/html', 'value': mensaje}
-                                            ]
+                                            ],
+                                            'reply_to': {'email': settings.DEFAULT_FROM_EMAIL},
+                                            'headers': {
+                                                'List-Unsubscribe': f'<mailto:{settings.DEFAULT_FROM_EMAIL}?subject=unsubscribe>'
+                                            }
                                         }
                                         # Intentar adjuntar inline el logo si está disponible
                                         try:
@@ -375,7 +388,7 @@ class Usuario(AbstractUser, TimeStampedModel):
                                                     'type': mime,
                                                     'filename': 'escudo_itagui.png',
                                                     'disposition': 'inline',
-                                                    'content_id': 'escudo_itagui'
+                                                    'content_id': '<escudo_itagui>'
                                                 }]
                                         except Exception:
                                             logger.exception('No se pudo adjuntar imagen inline para SendGrid (fallback)')

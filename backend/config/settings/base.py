@@ -126,7 +126,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/2.2/howto/static-files/
-SITE_URL = "https://base.apps.com/"
+SITE_URL = "http://previniendosst.co/"
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'public')
 STATIC_URL = f'/{SITE_URL}public/'
@@ -167,12 +167,35 @@ JWT_AUTH = {
     'JWT_RESPONSE_PAYLOAD_HANDLER': 'apps.seguridad.jwt_utils.jwt_response_payload_handler',
 }
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
 EMAIL_USE_TLS = True
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_HOST_USER = 'previniendosst2024@gmail.com'
-EMAIL_HOST_PASSWORD = 'Previniendo2024.'
-DEFAULT_FROM_EMAIL = 'previniendosst2024@gmail.com'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'tecnologia.previniendosst@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'Previniendo2024.')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 # Timeout for SMTP connections (seconds)
-EMAIL_TIMEOUT = 10
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 10))
+
+# Tamaño máximo por archivo para documentos (bytes). Default: 25 MB
+DOCUMENT_MAX_UPLOAD_SIZE = int(os.environ.get('DOCUMENT_MAX_UPLOAD_SIZE', 26214400))
+
+# Flag: en producción queremos que los fallos de envío sean visibles y puedan interrumpir el arranque
+EMAIL_FAIL_RAISE = os.environ.get('EMAIL_FAIL_RAISE', 'false').lower() in ('1', 'true', 'yes')
+
+# Advertencia si se usa SMTP pero las credenciales parecen no estar configuradas
+import logging as _logging
+if EMAIL_BACKEND.endswith('smtp.EmailBackend') and (not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD):
+    _logging.getLogger(__name__).warning('SMTP mail backend configurado pero EMAIL_HOST_USER o EMAIL_HOST_PASSWORD parece no estar configurado; el envío puede fallar.')
+
+# SendGrid: preferir variable de entorno, si no, intentar leer Docker secret en /run/secrets/sendgrid_api_key
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
+if not SENDGRID_API_KEY:
+    try:
+        with open('/run/secrets/sendgrid_api_key', 'r') as _f:
+            SENDGRID_API_KEY = _f.read().strip()
+    except Exception:
+        SENDGRID_API_KEY = None
+
+# Se pueden activar comprobaciones/primarios con SENDGRID_PRIMARY en el entorno
+SENDGRID_PRIMARY = os.environ.get('SENDGRID_PRIMARY', 'false').lower() in ('1', 'true', 'yes')

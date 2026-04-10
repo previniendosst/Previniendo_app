@@ -53,6 +53,15 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
         fields = ['uuid', 'carpeta', 'archivo', 'nombre_original']
         read_only_fields = ['uuid']
 
+    def validate_archivo(self, value):
+        """Validar tamaño máximo basado en settings.DOCUMENT_MAX_UPLOAD_SIZE"""
+        from django.conf import settings
+        max_size = getattr(settings, 'DOCUMENT_MAX_UPLOAD_SIZE', 26214400)
+        if getattr(value, 'size', None) and value.size > max_size:
+            # Mensaje claro para el frontend
+            raise serializers.ValidationError(f'El archivo es demasiado grande. Tamaño máximo permitido: {max_size // (1024*1024)} MB.')
+        return value
+
 
 class UserDocumentAccessSerializer(serializers.ModelSerializer):
     carpeta = serializers.PrimaryKeyRelatedField(queryset=DocumentFolder.objects.all(), write_only=True)

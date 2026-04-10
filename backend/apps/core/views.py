@@ -115,11 +115,19 @@ class DocumentUploadAPIView(APIView):
     def post(self, request, format=None):
         import logging
         logger = logging.getLogger(__name__)
+        # DEBUG: registrar estructura de la petición para investigar errores de upload
+        try:
+            logger.info('UPLOAD request.FILES keys: %s', list(request.FILES.keys()))
+            logger.info('UPLOAD request.data keys: %s', list(request.data.keys()))
+        except Exception:
+            logger.exception('No se pudo leer request.FILES/data para debug')
         serializer = DocumentUploadSerializer(data=request.data)
         try:
+            logger.debug('Serializer created for upload')
             if serializer.is_valid():
-            carpeta_uuid = serializer.validated_data.get('carpeta').uuid if serializer.validated_data.get('carpeta') else None
-            carpeta = None
+                logger.debug('Serializer valid. validated_data keys: %s', list(serializer.validated_data.keys()))
+                carpeta_uuid = serializer.validated_data.get('carpeta').uuid if serializer.validated_data.get('carpeta') else None
+                carpeta = None
             if carpeta_uuid:
                 try:
                     carpeta = DocumentFolder.objects.get(uuid=carpeta_uuid)
@@ -264,17 +272,26 @@ class DocumentDownloadAPIView(APIView):
             if not has_access:
                 return Response({'detail': 'No tienes permiso para descargar este documento'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Descargar el archivo
+        # Descargar o mostrar inline el archivo
         if not document.archivo:
             return Response({'detail': 'Archivo no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
         from django.http import FileResponse
         import os
+        import mimetypes
         
         file_path = document.archivo.path
         if os.path.exists(file_path):
-            response = FileResponse(open(file_path, 'rb'), content_type='application/octet-stream')
-            response['Content-Disposition'] = f'attachment; filename="{document.nombre_original or os.path.basename(file_path)}"'
+            guessed_type, _ = mimetypes.guess_type(file_path)
+            content_type = guessed_type or 'application/octet-stream'
+
+            inline = str(request.query_params.get('inline', '')).lower() in ('1', 'true', 'yes')
+            disposition_type = 'inline' if inline else 'attachment'
+
+            response = FileResponse(open(file_path, 'rb'), content_type=content_type)
+            response['Content-Disposition'] = f'{disposition_type}; filename="{document.nombre_original or os.path.basename(file_path)}"'
+            # Evitar que navegadores infieran tipo incorrecto
+            response['X-Content-Type-Options'] = 'nosniff'
             return response
-        
+
         return Response({'detail': 'Archivo no encontrado en servidor'}, status=status.HTTP_404_NOT_FOUND)

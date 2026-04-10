@@ -27,9 +27,39 @@ services:
     extra_hosts:
       - "host.docker.internal:172.17.0.1"
     command: sh -c 'python manage.py migrate && python manage.py collectstatic --noinput && gunicorn --worker-class=gevent --worker-connections=1000 --workers=3 --log-level=DEBUG config.wsgi:application --bind 0.0.0.0:8000'
+    env_file:
+      - .env.production
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.produccion
       - GIT_COMMIT_SHA=${GIT_COMMIT_SHA}
+      # Si su proveedor bloquea los puertos 25/465/587, forzar 2525 para SMTP
+      - EMAIL_PORT=2525
+      # Forzar usuario SMTP específico (cuenta sin 2FA)
+      - EMAIL_HOST_USER=tecnologia.previniendosst@gmail.com
+      # Guardar correos fallidos en disco si SMTP falla (útil mientras bloquean puertos)
+      - EMAIL_WRITE_ON_FAIL=1
+      - EMAIL_FAIL_DIR=/tmp/email_outbox
+      # Use SendGrid API como método primario para evitar bloqueos salientes (llave tomada de .env.production)
+      - SENDGRID_PRIMARY=1
+      # SENDGRID_API_KEY se toma desde .env.production (evita interpolación en el parser)
+      # Mantenga EMAIL_HOST y EMAIL_HOST_PASSWORD en su entorno seguro (secrets)
+    volumes:
+      - ./media/:/media/
+      - ./public/:/public/
+
+  email-replayer:
+    image: previniendo-backend
+    container_name: previniendo-email-replayer
+    restart: unless-stopped
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.produccion
+      - ENABLE_EMAIL_REPLAYER=${ENABLE_EMAIL_REPLAYER:-0}
+      - EMAIL_REPLAYER_INTERVAL=${EMAIL_REPLAYER_INTERVAL:-300}
+      - SENDGRID_PRIMARY=${SENDGRID_PRIMARY}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - EMAIL_WRITE_ON_FAIL=${EMAIL_WRITE_ON_FAIL}
+      - EMAIL_FAIL_DIR=${EMAIL_FAIL_DIR}
+    command: sh -c 'if [ "${ENABLE_EMAIL_REPLAYER}" = "1" ]; then while true; do python3 manage.py replay_email_outbox || true; sleep ${EMAIL_REPLAYER_INTERVAL}; done; else echo "email replayer disabled"; sleep infinity; fi'
     volumes:
       - ./media/:/media/
       - ./public/:/public/

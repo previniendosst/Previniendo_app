@@ -251,9 +251,34 @@ function setAbilities(rol) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadUser();
   setAbilities(auth.rol)
+
+  // Inicializar reglas de CASL a partir de los permisos guardados en el store
+  // Esto asegura que, tras recargar la SPA, `ability` tenga las reglas
+  // necesarias para pasar los guards de rutas (p.ej. 'mi-espacio').
+  if (auth.permisos && Array.isArray(auth.permisos) && auth.permisos.length > 0) {
+    const { can, rules } = new (await import('@casl/ability')).AbilityBuilder(ability.constructor)
+    for (const p of auth.permisos) {
+      const accion = p.accion?.codigo || ''
+      const sujeto = p.sujeto?.codigo || ''
+      if (accion && sujeto) {
+        const accionMap = {
+          'create': 'create',
+          'read': 'read',
+          'update': 'update',
+          'delete': 'delete',
+          'detail': 'detail',
+          'finish': 'finish'
+        }
+        const verb = accionMap[accion] || accion.toLowerCase()
+        can(verb, sujeto)
+      }
+    }
+    ability.update(rules)
+    console.log('[MainLayout] ability initialized from store:', rules)
+  }
 })
 
 watch(() => auth.rol, rol => {
